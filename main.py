@@ -651,6 +651,7 @@ async def export_pdf_endpoint(request: Request):
     """Render a styled PDF report using WeasyPrint and return as bytes."""
     try:
         import markdown as md_lib
+        from weasyprint import HTML
         from fastapi.responses import Response
 
         data    = await request.json()
@@ -658,8 +659,10 @@ async def export_pdf_endpoint(request: Request):
         brand   = data.get("brand", "analysis")
         metrics = data.get("metrics")
 
+        # Convert the markdown string into clean HTML tags
         body_html = md_lib.markdown(report, extensions=['tables', 'fenced_code'])
 
+        # Build metrics table if available
         metrics_html = ''
         if metrics:
             cl    = metrics.get('copy_length', {})
@@ -681,77 +684,75 @@ async def export_pdf_endpoint(request: Request):
             </div>
             """
 
+        # Construct full HTML with CSS page controls for WeasyPrint
         full_html = f"""<!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
             <style>
-                body {{ font-family: Arial, sans-serif; font-size: 13px; color: #1a1a2e; margin: 0; padding: 0; }}
-                .header {{ background: #4361EE; color: white; padding: 32px 40px 24px; }}
-                .header h1 {{ margin: 0 0 4px 0; font-size: 22px; }}
-                .header .sub {{ font-size: 12px; opacity: 0.85; margin-top: 6px; }}
-                .content {{ padding: 32px 40px; }}
-                h2 {{ font-size: 15px; color: #4361EE; border-bottom: 2px solid #4361EE; padding-bottom: 5px; margin-top: 28px; }}
-                h3 {{ font-size: 13px; color: #1a1a2e; margin-top: 18px; }}
-                p, li {{ line-height: 1.7; color: #333; }}
-                table {{ width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; }}
+                @page {{
+                    size: A4;
+                    margin: 20mm 15mm;
+                }}
+                body {{ 
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+                    font-size: 11pt; 
+                    color: #1a1a2e; 
+                    margin: 0; 
+                    padding: 0; 
+                }}
+                .header {{ 
+                    background: #4361EE; 
+                    color: white; 
+                    padding: 24px; 
+                    margin-bottom: 20px;
+                    border-radius: 4px;
+                }}
+                .header h1 {{ margin: 0 0 6px 0; font-size: 20pt; }}
+                .header .sub {{ font-size: 10pt; opacity: 0.9; margin-top: 4px; }}
+                h2 {{ font-size: 14pt; color: #4361EE; border-bottom: 2px solid #4361EE; padding-bottom: 4px; margin-top: 24px; page-break-after: avoid; }}
+                h3 {{ font-size: 12pt; color: #1a1a2e; margin-top: 16px; page-break-after: avoid; }}
+                p, li {{ line-height: 1.6; color: #333; }}
+                ul, ol {{ margin-top: 5px; padding-left: 20px; }}
+                li {{ margin-bottom: 4px; }}
+                table {{ width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 10pt; page-break-inside: avoid; }}
                 th {{ background: #4361EE; color: white; padding: 8px 12px; text-align: left; }}
-                td {{ padding: 7px 12px; border-bottom: 1px solid #e8e8e8; }}
+                td {{ padding: 8px 12px; border-bottom: 1px solid #e8e8e8; }}
                 tr:nth-child(even) td {{ background: #f8f9ff; }}
-                .metrics-box {{ background: #f0f4ff; border-left: 4px solid #4361EE; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }}
+                .metrics-box {{ background: #f0f4ff; border-left: 4px solid #4361EE; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0; page-break-inside: avoid; }}
                 .metrics-box h3 {{ margin-top: 0; color: #4361EE; }}
-                .footer {{ margin-top: 40px; padding: 16px 40px; border-top: 1px solid #e8e8e8; font-size: 10px; color: #999; text-align: center; }}
+                .footer {{ margin-top: 30px; padding-top: 10px; border-top: 1px solid #e8e8e8; font-size: 9pt; color: #999; text-align: center; }}
             </style>
         </head>
         <body>
             <div class="header">
                 <h1>AdSpy Intelligence Report</h1>
                 <div class="sub">Target: {brand} | Generated: {datetime.now().strftime('%B %d, %Y %H:%M')}</div>
-                <div class="sub">Model: llama-3.3-70b (Groq) | AI Engineering Bootcamp Batch 11</div>
+                <div class="sub">Model: llama-3.3-70b (Groq)</div>
             </div>
-            <div class="content">{metrics_html}{body_html}</div>
-            <div class="footer">AdSpy Intelligence Agent · AI Engineering Bootcamp Batch 11 · {datetime.now().year}</div>
+            <div class="content">
+                {metrics_html}
+                {body_html}
+            </div>
+            <div class="footer">AdSpy Intelligence Agent · Generated via Railway Engine</div>
         </body>
         </html>"""
 
-        # Generate PDF as bytes — tidak perlu save ke disk
-        from fpdf import FPDF
-        import io
+        # Pass the full compiled HTML string directly to WeasyPrint
+        pdf_bytes = HTML(string=full_html).write_pdf()
 
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font('Helvetica', size=12)
+        # Return the raw binary stream with proper application/pdf content type headers
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={{
+                "Content-Disposition": f"attachment; filename=adspy_report_{brand}.pdf"
+            }}
+        )
 
-        # Add title
-        pdf.set_font('Helvetica', 'B', 16)
-        pdf.cell(0, 10, f'AdSpy Intelligence Report - {brand}', ln=True)
-        pdf.set_font('Helvetica', size=10)
-        pdf.cell(0, 8, f'Generated: {datetime.now().strftime("%B %d, %Y %H:%M")}', ln=True)
-        pdf.ln(5)
-
-        # Add report content
-        pdf.set_font('Helvetica', size=11)
-        for line in report.split('\n'):
-            line = line.strip()
-            if not line:
-                pdf.ln(3)
-                continue
-            if line.startswith('### '):
-                pdf.set_font('Helvetica', 'B', 12)
-                pdf.multi_cell(0, 7, line.replace('### ', ''))
-                pdf.set_font('Helvetica', size=11)
-            elif line.startswith('## '):
-                pdf.set_font('Helvetica', 'B', 14)
-                pdf.multi_cell(0, 8, line.replace('## ', ''))
-                pdf.set_font('Helvetica', size=11)
-            elif line.startswith('**') and line.endswith('**'):
-                pdf.set_font('Helvetica', 'B', 11)
-                pdf.multi_cell(0, 6, line.replace('**', ''))
-                pdf.set_font('Helvetica', size=11)
-            else:
-                pdf.multi_cell(0, 6, line)
-
-        pdf_bytes = bytes(pdf.output())
+    except Exception as e:
+        print(f"PDF Export Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
 
 
 
