@@ -1,6 +1,6 @@
 FROM python:3.11-slim-bookworm
 
-# Install WeasyPrint system dependencies (Debian 12 Bookworm package names)
+# Install WeasyPrint system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
     libpango-1.0-0 \
@@ -25,4 +25,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

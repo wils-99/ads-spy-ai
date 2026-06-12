@@ -1,0 +1,11 @@
+venv/
+.env
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pdf
+*.png
+.DS_Store
+*.ipynb
+*.bak
