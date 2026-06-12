@@ -648,20 +648,17 @@ async def get_ads_endpoint(query: str):
 
 @app.post("/api/export-pdf")
 async def export_pdf_endpoint(request: Request):
-    """Render a styled PDF report using WeasyPrint and download it directly."""
+    """Render a styled PDF report using WeasyPrint and return as bytes."""
     try:
         import markdown as md_lib
+        from fastapi.responses import Response
+        from weasyprint import HTML
 
-        data      = await request.json()
-        report    = data.get("report", "")
-        brand     = data.get("brand", "analysis")
-        metrics   = data.get("metrics")
+        data    = await request.json()
+        report  = data.get("report", "")
+        brand   = data.get("brand", "analysis")
+        metrics = data.get("metrics")
 
-        timestamp  = datetime.now().strftime('%Y%m%d_%H%M')
-        safe_brand = re.sub(r'[^a-zA-Z0-9_-]', '_', brand)
-        pdf_file   = f'adspy_report_{safe_brand}_{timestamp}.pdf'
-
-        # Convert markdown to HTML once
         body_html = md_lib.markdown(report, extensions=['tables', 'fenced_code'])
 
         metrics_html = ''
@@ -690,44 +687,21 @@ async def export_pdf_endpoint(request: Request):
         <head>
             <meta charset="utf-8">
             <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    font-size: 13px;
-                    color: #1a1a2e;
-                    margin: 0; padding: 0;
-                }}
-                .header {{
-                    background: #4361EE;
-                    color: white;
-                    padding: 32px 40px 24px;
-                }}
+                body {{ font-family: Arial, sans-serif; font-size: 13px; color: #1a1a2e; margin: 0; padding: 0; }}
+                .header {{ background: #4361EE; color: white; padding: 32px 40px 24px; }}
                 .header h1 {{ margin: 0 0 4px 0; font-size: 22px; }}
                 .header .sub {{ font-size: 12px; opacity: 0.85; margin-top: 6px; }}
                 .content {{ padding: 32px 40px; }}
-                h2 {{
-                    font-size: 15px; color: #4361EE;
-                    border-bottom: 2px solid #4361EE;
-                    padding-bottom: 5px; margin-top: 28px;
-                }}
+                h2 {{ font-size: 15px; color: #4361EE; border-bottom: 2px solid #4361EE; padding-bottom: 5px; margin-top: 28px; }}
                 h3 {{ font-size: 13px; color: #1a1a2e; margin-top: 18px; }}
                 p, li {{ line-height: 1.7; color: #333; }}
                 table {{ width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; }}
                 th {{ background: #4361EE; color: white; padding: 8px 12px; text-align: left; }}
                 td {{ padding: 7px 12px; border-bottom: 1px solid #e8e8e8; }}
                 tr:nth-child(even) td {{ background: #f8f9ff; }}
-                .metrics-box {{
-                    background: #f0f4ff;
-                    border-left: 4px solid #4361EE;
-                    padding: 16px 20px;
-                    margin: 20px 0;
-                    border-radius: 0 8px 8px 0;
-                }}
+                .metrics-box {{ background: #f0f4ff; border-left: 4px solid #4361EE; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }}
                 .metrics-box h3 {{ margin-top: 0; color: #4361EE; }}
-                .footer {{
-                    margin-top: 40px; padding: 16px 40px;
-                    border-top: 1px solid #e8e8e8;
-                    font-size: 10px; color: #999; text-align: center;
-                }}
+                .footer {{ margin-top: 40px; padding: 16px 40px; border-top: 1px solid #e8e8e8; font-size: 10px; color: #999; text-align: center; }}
             </style>
         </head>
         <body>
@@ -736,18 +710,25 @@ async def export_pdf_endpoint(request: Request):
                 <div class="sub">Target: {brand} | Generated: {datetime.now().strftime('%B %d, %Y %H:%M')}</div>
                 <div class="sub">Model: llama-3.3-70b (Groq) | AI Engineering Bootcamp Batch 11</div>
             </div>
-            <div class="content">
-                {metrics_html}
-                {body_html}
-            </div>
-            <div class="footer">
-                AdSpy Intelligence Agent · AI Engineering Bootcamp Batch 11 · {datetime.now().year}
-            </div>
+            <div class="content">{metrics_html}{body_html}</div>
+            <div class="footer">AdSpy Intelligence Agent · AI Engineering Bootcamp Batch 11 · {datetime.now().year}</div>
         </body>
         </html>"""
 
-        HTML(string=full_html).write_pdf(pdf_file)
-        return FileResponse(pdf_file, filename=pdf_file, media_type="application/pdf")
+        # Generate PDF as bytes — tidak perlu save ke disk
+        pdf_bytes = HTML(string=full_html).write_pdf()
+
+        safe_brand = re.sub(r'[^a-zA-Z0-9_-]', '_', brand)
+        filename   = f'adspy_report_{safe_brand}_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+
+        return Response(
+            content=pdf_bytes,
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Content-Length': str(len(pdf_bytes))
+            }
+        )
 
     except Exception as e:
         return {"error": str(e)}
