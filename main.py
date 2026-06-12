@@ -715,27 +715,43 @@ async def export_pdf_endpoint(request: Request):
         </html>"""
 
         # Generate PDF as bytes — tidak perlu save ke disk
-        from xhtml2pdf import pisa
+        from fpdf import FPDF
         import io
 
-        pdf_buffer = io.BytesIO()
-        pisa.CreatePDF(full_html, dest=pdf_buffer)
-        pdf_bytes = pdf_buffer.getvalue()
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font('Helvetica', size=12)
 
-        safe_brand = re.sub(r'[^a-zA-Z0-9_-]', '_', brand)
-        filename   = f'adspy_report_{safe_brand}_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+        # Add title
+        pdf.set_font('Helvetica', 'B', 16)
+        pdf.cell(0, 10, f'AdSpy Intelligence Report - {brand}', ln=True)
+        pdf.set_font('Helvetica', size=10)
+        pdf.cell(0, 8, f'Generated: {datetime.now().strftime("%B %d, %Y %H:%M")}', ln=True)
+        pdf.ln(5)
 
-        return Response(
-            content=pdf_bytes,
-            media_type='application/pdf',
-            headers={
-                'Content-Disposition': f'attachment; filename="{filename}"',
-                'Content-Length': str(len(pdf_bytes))
-            }
-        )
+        # Add report content
+        pdf.set_font('Helvetica', size=11)
+        for line in report.split('\n'):
+            line = line.strip()
+            if not line:
+                pdf.ln(3)
+                continue
+            if line.startswith('### '):
+                pdf.set_font('Helvetica', 'B', 12)
+                pdf.multi_cell(0, 7, line.replace('### ', ''))
+                pdf.set_font('Helvetica', size=11)
+            elif line.startswith('## '):
+                pdf.set_font('Helvetica', 'B', 14)
+                pdf.multi_cell(0, 8, line.replace('## ', ''))
+                pdf.set_font('Helvetica', size=11)
+            elif line.startswith('**') and line.endswith('**'):
+                pdf.set_font('Helvetica', 'B', 11)
+                pdf.multi_cell(0, 6, line.replace('**', ''))
+                pdf.set_font('Helvetica', size=11)
+            else:
+                pdf.multi_cell(0, 6, line)
 
-    except Exception as e:
-        return {"error": str(e)}
+        pdf_bytes = bytes(pdf.output())
 
 
 
