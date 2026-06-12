@@ -652,7 +652,6 @@ async def export_pdf_endpoint(request: Request):
     try:
         import markdown as md_lib
         from fastapi.responses import Response
-        from weasyprint import HTML
 
         data    = await request.json()
         report  = data.get("report", "")
@@ -716,7 +715,12 @@ async def export_pdf_endpoint(request: Request):
         </html>"""
 
         # Generate PDF as bytes — tidak perlu save ke disk
-        pdf_bytes = HTML(string=full_html).write_pdf()
+        from xhtml2pdf import pisa
+        import io
+
+        pdf_buffer = io.BytesIO()
+        pisa.CreatePDF(full_html, dest=pdf_buffer)
+        pdf_bytes = pdf_buffer.getvalue()
 
         safe_brand = re.sub(r'[^a-zA-Z0-9_-]', '_', brand)
         filename   = f'adspy_report_{safe_brand}_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
