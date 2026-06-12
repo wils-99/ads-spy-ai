@@ -1,0 +1,11 @@
+fastapi>=0.100.0
+uvicorn>=0.22.0
+langchain>=0.1.0
+langchain-core>=0.1.0
+langgraph>=0.0.10
+langchain-groq>=0.1.0
+tavily-python>=0.3.0
+requests>=2.31.0
+markdown>=3.4.0
+weasyprint>=60.0
+python-dotenv>=1.0.0
