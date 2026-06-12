@@ -1,8 +1,7 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import StreamingResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, Request, HTTPException
 import os
 import json
 import re
@@ -537,7 +536,6 @@ async def proxy_image(url: str):
             print(f"Failed with status: {response.status_code}")
             raise HTTPException(status_code=404, detail="Image not found")
         
-        from fastapi.responses import Response
         return Response(
             content=response.content,
             media_type=response.headers.get('content-type', 'image/jpeg'),
@@ -652,7 +650,6 @@ async def export_pdf_endpoint(request: Request):
     try:
         import markdown as md_lib
         from weasyprint import HTML
-        from fastapi.responses import Response
 
         data    = await request.json()
         report  = data.get("report", "")
@@ -742,12 +739,13 @@ async def export_pdf_endpoint(request: Request):
         pdf_bytes = HTML(string=full_html).write_pdf()
 
         # Return the raw binary stream with proper application/pdf content type headers
+        safe_brand = re.sub(r'[^a-zA-Z0-9_-]', '_', brand)
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={{
-                "Content-Disposition": f"attachment; filename=adspy_report_{brand}.pdf"
-            }}
+            headers={
+                "Content-Disposition": f"attachment; filename=adspy_report_{safe_brand}.pdf"
+            }
         )
 
     except Exception as e:
